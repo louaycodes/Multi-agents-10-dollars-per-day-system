@@ -1,0 +1,131 @@
+version: '3.9'
+
+services:
+  # ─────────────────────────────────────────────
+  # PostgreSQL 14 — Primary data store
+  # ─────────────────────────────────────────────
+  postgres:
+    image: postgres:14-alpine
+    container_name: agents_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-agents_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-dev_password}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-agents_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - agents_net
+
+  # ─────────────────────────────────────────────
+  # Redis 7 — Message queue + caching
+  # ─────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: agents_redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: >
+      redis-server
+      --requirepass "${REDIS_PASSWORD:-}"
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - agents_net
+
+  # ─────────────────────────────────────────────
+  # Ollama — Local LLM (mistral)
+  # After start: docker exec agents_ollama ollama pull mistral
+  # ─────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: agents_ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - agents_net
+
+  # ─────────────────────────────────────────────
+  # Main Python App — Autonomous Agent System
+  # ─────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agents_app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-agents_db}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-dev_password}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-mistral}
+      - LLM_TYPE=${LLM_TYPE:-ollama}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - DAILY_TARGET=${DAILY_TARGET:-10.0}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - TIMEZONE=${TIMEZONE:-UTC}
+      - MTURK_SANDBOX=${MTURK_SANDBOX:-true}
+      - MTURK_ACCESS_KEY=${MTURK_ACCESS_KEY:-}
+      - MTURK_SECRET_KEY=${MTURK_SECRET_KEY:-}
+      - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID:-}
+      - REDDIT_CLIENT_SECRET=${REDDIT_CLIENT_SECRET:-}
+      - REDDIT_USERNAME=${REDDIT_USERNAME:-}
+      - REDDIT_PASSWORD=${REDDIT_PASSWORD:-}
+      - AMAZON_AFFILIATE_ID=${AMAZON_AFFILIATE_ID:-}
+      - RESELLING_BUDGET=${RESELLING_BUDGET:-20.0}
+      - MIN_PROFIT_MARGIN=${MIN_PROFIT_MARGIN:-0.60}
+    volumes:
+      - ./logs:/app/logs
+      - ./.env:/app/.env
+    command: python main.py
+    networks:
+      - agents_net
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  ollama_data:
+    driver: local
+
+networks:
+  agents_net:
+    driver: bridge
