@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# ============================================================
+# nginx_agents.conf.template
+#
+# Optional: Add this block to your existing Nginx config to
+# expose the agents app via a URL path.
+#
+# HOW TO USE:
+#   1. Copy the relevant block below into your existing Nginx
+#      server block (usually in /etc/nginx/sites-available/<site>)
+#   2. Replace YOUR_DOMAIN.COM with your actual domain
+#   3. Test: sudo nginx -t
+#   4. Reload: sudo nginx -s reload
+#
+# IMPORTANT: Only do this AFTER the agents system is running.
+# ============================================================
+
+# ─────────────────────────────────────────────────────────────
+# OPTION A: Add a /agents-api/ path to your existing domain
+# (Minimal change — safest option)
+# ─────────────────────────────────────────────────────────────
+
+# Find your existing server block and ADD this location block:
+#
+# server {
+#     listen 80;
+#     server_name YOUR_DOMAIN.COM;
+#
+#     # ... your existing portfolio routes ...
+#
+#     # NEW BLOCK: Route /agents-api/ to agents app on port 8001
+#     location /agents-api/ {
+#         proxy_pass http://127.0.0.1:8001/;
+#         proxy_http_version 1.1;
+#         proxy_set_header Host $host;
+#         proxy_set_header X-Real-IP $remote_addr;
+#         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#         proxy_set_header X-Forwarded-Proto $scheme;
+#         proxy_read_timeout 60s;
+#         proxy_connect_timeout 10s;
+#
+#         # CORS (if needed)
+#         add_header Access-Control-Allow-Origin "*" always;
+#     }
+# }
+
+
+# ─────────────────────────────────────────────────────────────
+# OPTION B: Separate subdomain for agents (e.g. agents.mysite.com)
+# Requires a DNS A record pointing agents.mysite.com to VPS IP.
+# ─────────────────────────────────────────────────────────────
+server {
+    listen 80;
+    server_name agents.YOUR_DOMAIN.COM;
+
+    # Redirect HTTP → HTTPS (if using SSL)
+    # return 301 https://$host$request_uri;
+
+    location / {
+        proxy_pass http://127.0.0.1:8001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+        proxy_connect_timeout 10s;
+        proxy_buffering off;
+    }
+
+    # Serve agent logs as plain text (optional, useful for monitoring)
+    location /logs/ {
+        alias /home/louay/agents-system/logs/;
+        autoindex on;
+        default_type text/plain;
+        # Security: restrict to specific IPs if needed
+        # allow YOUR_IP;
+        # deny all;
+    }
+}
+
+# ─────────────────────────────────────────────────────────────
+# OPTION C: SSL subdomain (requires certbot certificate)
+# Run after: certbot --nginx -d agents.YOUR_DOMAIN.COM
+# ─────────────────────────────────────────────────────────────
+# server {
+#     listen 443 ssl;
+#     server_name agents.YOUR_DOMAIN.COM;
+#
+#     ssl_certificate /etc/letsencrypt/live/YOUR_DOMAIN.COM/fullchain.pem;
+#     ssl_certificate_key /etc/letsencrypt/live/YOUR_DOMAIN.COM/privkey.pem;
+#     ssl_protocols TLSv1.2 TLSv1.3;
+#
+#     location / {
+#         proxy_pass http://127.0.0.1:8001;
+#         proxy_set_header Host $host;
+#         proxy_set_header X-Real-IP $remote_addr;
+#         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#         proxy_set_header X-Forwarded-Proto $scheme;
+#         proxy_read_timeout 60s;
+#     }
+# }
