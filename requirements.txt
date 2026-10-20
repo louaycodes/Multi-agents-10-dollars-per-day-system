@@ -44,7 +44,7 @@ python-dotenv==1.0.1
 # --- HTTP Utilities ---
 httpx==0.27.0
 tenacity==8.3.0
-aiohttp==3.9.5
+aiohttp==3.14.4
 
 # --- Content Generation ---
 markdown==3.6
