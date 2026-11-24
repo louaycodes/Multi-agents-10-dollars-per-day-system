@@ -25,7 +25,7 @@ SQLAlchemy==2.0.30
 redis==5.0.4
 
 # --- Web Scraping ---
-requests==2.31.0
+requests==2.33.0
 beautifulsoup4==4.12.3
 selenium==4.21.0
 webdriver-manager==4.0.1
