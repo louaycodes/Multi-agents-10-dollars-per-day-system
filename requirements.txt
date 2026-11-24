@@ -6,7 +6,7 @@
 # --- Agent Frameworks ---
 crewai==0.28.8
 langchain==0.1.20
-langchain-community==0.0.38
+langchain-community==0.3.27
 langchain-core==0.1.52
 
 # --- LLM Backends ---
