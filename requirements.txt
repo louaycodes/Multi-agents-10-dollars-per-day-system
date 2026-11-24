@@ -51,7 +51,7 @@ markdown==3.6
 jinja2==3.1.4
 
 # --- Testing ---
-pytest==8.2.1
+pytest==9.0.3
 pytest-mock==3.14.0
 responses==0.25.3
 freezegun==1.5.0
